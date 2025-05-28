@@ -5,15 +5,14 @@ import commonjs from '@rollup/plugin-commonjs';
 export default defineConfig({
   plugins: [react(), commonjs()],
   optimizeDeps: {
-    exclude: ['ansi-colors', 'lucide-react', '@apify/log'],
+    exclude: ['lucide-react', '@apify/log', 'ansi-colors'],
   },
   build: {
     outDir: 'dist',
     commonjsOptions: {
-      transformMixedEsModules: true
+      transformMixedEsModules: true,
     },
     rollupOptions: {
-      external: ['ansi-colors', '@apify/log'], // force exclude from bundle
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
@@ -40,6 +39,13 @@ export default defineConfig({
       clientPort: 443,
       timeout: 120000
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001', // Your backend server
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   },
   preview: {
     port: 3000,
