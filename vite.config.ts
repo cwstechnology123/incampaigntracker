@@ -24,7 +24,7 @@ export default defineConfig({
       clientPort: 443,
       timeout: 120000
     },
-    allowedHosts: ['localhost', 'd61d-2401-4900-73e8-946c-c9c-1ba8-e729-cdc2.ngrok-free.app']
+    allowedHosts: ['localhost', 'incampaigntracker.vercel.app']
   },
   preview: {
     port: 3000,
