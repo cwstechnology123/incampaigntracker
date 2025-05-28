@@ -4,13 +4,18 @@ import { Linkedin, LogOut, Menu, X, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const Header: React.FC = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAuthenticated = !!user;
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
   return (

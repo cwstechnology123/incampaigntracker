@@ -1,4 +1,5 @@
 import { ApifyClient } from 'apify-client';
+import { fetchIntegrationSettings } from '../lib/integrationSettingsQueries';
 
 const ACTOR_ID = 'curious_coder/linkedin-post-search-scraper';
 const MAX_RETRIES = 3;
@@ -20,34 +21,37 @@ const retryWithBackoff = async <T>(
   }
 };
 
-const parseCookies = () => {
-  const liAt = localStorage.getItem('VITE_LINKEDIN_LI_AT') || import.meta.env.VITE_LINKEDIN_LI_AT;
-  const jsessionId = localStorage.getItem('VITE_LINKEDIN_JSESSIONID') || import.meta.env.VITE_LINKEDIN_JSESSIONID;
+const parseCookies = async () => {
+  const settings = await fetchIntegrationSettings();
 
-  if (!liAt || !jsessionId) {
-    throw new Error('Missing required LinkedIn cookies: li_at, JSESSIONID. Please update your settings.');
-  }
-
-  return [
-    { name: 'li_at', value: liAt },
-    { name: 'JSESSIONID', value: jsessionId.replace(/^"(.*)"$/, '$1') }
-  ];
-};
-
-export const scrapeLinkedInPosts = async (hashtag: string) => {
-  const apifyToken = localStorage.getItem('VITE_APIFY_API_TOKEN') || import.meta.env.VITE_APIFY_API_TOKEN;
+  const liAt = settings?.li_at;
+  const jsessionId = settings?.jsessionid;
+  const apifyToken = settings?.apify_api_token;
 
   if (!apifyToken) {
     throw new Error('Apify API token not found. Please update your settings.');
   }
 
-  // Initialize the client with the current token
-  const client = new ApifyClient({
-    token: apifyToken,
-  });
+  if (!liAt || !jsessionId || !apifyToken) {
+    throw new Error('Missing one or more required settings: li_at, JSESSIONID, Apify token.');
+  }
 
+  const cookies = [
+    { name: 'li_at', value: liAt },
+    { name: 'JSESSIONID', value: jsessionId.replace(/^"(.*)"$/, '$1') }
+  ];
+
+  return { cookies, apifyToken };
+};
+
+export const scrapeLinkedInPosts = async (hashtag: string) => {
   try {
-    const cookie = parseCookies();
+    const { cookies, apifyToken } = await parseCookies(); // Use cookies + token from DB
+
+    // Initialize the client with the current token
+    const client = new ApifyClient({
+      token: apifyToken,
+    });
 
     const run = await retryWithBackoff(() => 
       client.actor(ACTOR_ID).call({
@@ -57,7 +61,7 @@ export const scrapeLinkedInPosts = async (hashtag: string) => {
         maxConcurrency: 10,
         maxRequestRetries: 3,
         timeoutSecs: 300,
-        cookie,
+        cookie: cookies,
         useApifyProxy: true,
         proxy: { useApifyProxy: true }
       })

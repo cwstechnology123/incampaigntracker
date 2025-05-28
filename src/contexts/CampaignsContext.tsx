@@ -71,13 +71,13 @@ export const CampaignsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const { data, error } = await supabase
         .from('campaigns')
-        .insert({
+        .insert([{
           user_id: user.id,
           title: campaignData.title,
           description: campaignData.description,
           hashtag: campaignData.hashtag,
           status: 'idle'
-        })
+        }])
         .select('*')
         .single();
 
@@ -117,53 +117,61 @@ export const CampaignsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const runCampaign = async (id: string) => {
-    if (!user) throw new Error('User must be logged in to run a campaign');
-    
+    if (!user) {
+      setError('User must be logged in to run a campaign');
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
+
     try {
-      // Update campaign status to running
-      const { error: updateError } = await supabase
+      // Step 1: Update campaign status to 'running'
+      const { error: updateStatusError } = await supabase
         .from('campaigns')
         .update({ status: 'running' })
         .eq('id', id);
 
-      if (updateError) throw updateError;
+      if (updateStatusError) throw updateStatusError;
 
-      setCampaigns(prev => 
+      setCampaigns(prev =>
         prev.map(c => c.id === id ? { ...c, status: 'running' } : c)
       );
 
       const campaign = getCampaign(id);
-      if (!campaign) throw new Error('Campaign not found');
-      
-      // Use Apify to scrape LinkedIn posts
-      const posts = await scrapeLinkedInPosts(campaign.hashtag);
-      
-      if (!posts || posts.length === 0) {
-        const { error: noPostsError } = await supabase
+      if (!campaign || !campaign.hashtag) {
+        throw new Error('Campaign not found or missing hashtag');
+      }
+
+      // Step 2: Scrape LinkedIn posts
+      let posts = [];
+      try {
+        posts = await scrapeLinkedInPosts(campaign.hashtag);
+      } catch (scrapeError) {
+        console.error('Scraping error:', scrapeError);
+        throw new Error('Failed to scrape LinkedIn posts');
+      }
+
+      // Step 3: Handle case where no posts found
+      if (!posts.length) {
+        const now = new Date().toISOString();
+
+        await supabase
           .from('campaigns')
-          .update({ 
-            status: 'no_posts_found',
-            last_run: new Date().toISOString()
-          })
+          .update({ status: 'no_posts_found', last_run: now })
           .eq('id', id);
 
-        if (noPostsError) throw noPostsError;
-
-        setCampaigns(prev => 
-          prev.map(c => c.id === id ? { 
-            ...c, 
-            status: 'no_posts_found',
-            lastRun: new Date().toISOString()
-          } : c)
+        setCampaigns(prev =>
+          prev.map(c => c.id === id ? { ...c, status: 'no_posts_found', lastRun: now } : c)
         );
+
         return;
       }
-      
-      // Insert posts into database
-      const { error: postsError } = await supabase
+
+      // Step 4: Insert posts into database using upsert to avoid duplicates
+      const { error: insertError } = await supabase
         .from('posts')
-        .insert(
+        .upsert(
           posts.map(post => ({
             campaign_id: id,
             post_date: post.postDate,
@@ -174,47 +182,47 @@ export const CampaignsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             shares: post.shares,
             hashtags: post.hashtags,
             content: post.content,
-          }))
+          })),
+          { onConflict: 'post_link' }
         );
 
-      if (postsError) throw postsError;
-      
-      // Update campaign status to completed
+      if (insertError) {
+        console.error('Post insert error:', insertError);
+        throw new Error('Failed to insert posts into database');
+      }
+
+      // Step 5: Mark campaign as completed
+      const now = new Date().toISOString();
+
       const { error: completeError } = await supabase
         .from('campaigns')
-        .update({ 
-          status: 'completed',
-          last_run: new Date().toISOString()
-        })
+        .update({ status: 'completed', last_run: now })
         .eq('id', id);
 
       if (completeError) throw completeError;
 
-      setCampaigns(prev => 
-        prev.map(c => c.id === id ? { 
-          ...c, 
-          status: 'completed',
-          lastRun: new Date().toISOString()
-        } : c)
+      setCampaigns(prev =>
+        prev.map(c => c.id === id ? { ...c, status: 'completed', lastRun: now } : c)
       );
     } catch (err) {
       console.error('Error running campaign:', err);
-      
-      // Update campaign status to failed
-      const { error: failError } = await supabase
+
+      // Step 6: Always set campaign status to 'failed' if anything fails
+      const { error: failUpdateError } = await supabase
         .from('campaigns')
         .update({ status: 'failed' })
         .eq('id', id);
 
-      if (failError) console.error('Failed to update campaign status:', failError);
+      if (failUpdateError) {
+        console.error('Failed to update campaign to "failed":', failUpdateError);
+      }
 
-      setCampaigns(prev => 
+      setCampaigns(prev =>
         prev.map(c => c.id === id ? { ...c, status: 'failed' } : c)
       );
-      
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run campaign';
+
+      const errorMessage = err instanceof Error ? err.message : 'Unexpected error occurred';
       setError(errorMessage);
-      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
