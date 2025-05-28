@@ -9,28 +9,13 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    commonjsOptions: {
-      transformMixedEsModules: true,
-    },
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('chart.js')) {
-              return 'chartjs';
-            }
-            if (id.includes('react-chartjs-2')) {
-              return 'chartjs-react';
-            }
-            if (id.includes('react')) {
-              return 'react-vendor';
-            }
-            return 'vendor';
-          }
-        }
-      }
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
     },
-    chunkSizeWarningLimit: 1000, // Increase chunk size limit to avoid warnings
   },
   server: {
     port: 3000,
@@ -39,7 +24,7 @@ export default defineConfig({
       clientPort: 443,
       timeout: 120000
     },
-    allowedHosts: ['localhost', 'incampaigntracker.cwsdev1.com', '2f1c-2401-4900-73ec-551c-55f3-d7c6-8948-7072.ngrok-free.app']
+    allowedHosts: ['localhost', 'd61d-2401-4900-73e8-946c-c9c-1ba8-e729-cdc2.ngrok-free.app']
   },
   preview: {
     port: 3000,

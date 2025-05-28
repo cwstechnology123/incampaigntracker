@@ -16,6 +16,7 @@ import {
   Trash2,
   Loader,
   AlertCircle,
+  ExternalLink,
   Linkedin
 } from 'lucide-react';
 import { PostList } from '../Post/PostList';

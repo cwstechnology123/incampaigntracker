@@ -140,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      setUser(null); // triggers re-render in components using user/isAuthenticated
+      setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
       throw error;

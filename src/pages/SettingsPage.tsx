@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Save, Key, Cookie } from 'lucide-react';
-import { fetchIntegrationSettings, upsertIntegrationSettings } from '../lib/integrationSettingsQueries';
 
 export const SettingsPage: React.FC = () => {
   const [apifyToken, setApifyToken] = useState('');
@@ -11,19 +10,14 @@ export const SettingsPage: React.FC = () => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const settings = await fetchIntegrationSettings();
-        if (settings) {
-          setApifyToken(settings.apify_api_token || '');
-          setLiAtCookie(settings.li_at || '');
-          setJsessionId(settings.jsessionid || '');
-        }
-      } catch (err) {
-        setError('Failed to load settings');
-      }
-    };
-    loadSettings();
+    // Load existing credentials
+    const apifyToken = localStorage.getItem('VITE_APIFY_API_TOKEN');
+    const liAt = localStorage.getItem('VITE_LINKEDIN_LI_AT');
+    const jsessionId = localStorage.getItem('VITE_LINKEDIN_JSESSIONID');
+
+    if (apifyToken) setApifyToken(apifyToken);
+    if (liAt) setLiAtCookie(liAt);
+    if (jsessionId) setJsessionId(jsessionId);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,15 +27,16 @@ export const SettingsPage: React.FC = () => {
     setIsSaving(true);
 
     try {
+      // Validate inputs
       if (!apifyToken || !liAtCookie || !jsessionId) {
         throw new Error('All fields are required');
       }
-      // Upsert the integration settings
-      await upsertIntegrationSettings({
-        li_at: liAtCookie,
-        jsessionid: jsessionId,
-        apify_api_token: apifyToken,
-      });
+
+      // Save credentials to localStorage
+      localStorage.setItem('VITE_APIFY_API_TOKEN', apifyToken);
+      localStorage.setItem('VITE_LINKEDIN_LI_AT', liAtCookie);
+      localStorage.setItem('VITE_LINKEDIN_JSESSIONID', jsessionId);
+
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save settings');
