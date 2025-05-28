@@ -10,9 +10,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     commonjsOptions: {
-      transformMixedEsModules: true,
+      transformMixedEsModules: true
     },
     rollupOptions: {
+      external: ['ansi-colors', '@apify/log'], // force exclude from bundle
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
@@ -39,7 +40,6 @@ export default defineConfig({
       clientPort: 443,
       timeout: 120000
     },
-    allowedHosts: ['localhost', 'incampaigntracker.cwsdev1.com', '2f1c-2401-4900-73ec-551c-55f3-d7c6-8948-7072.ngrok-free.app']
   },
   preview: {
     port: 3000,
