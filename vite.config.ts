@@ -1,12 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import commonjs from '@rollup/plugin-commonjs';
-import legacy from '@vitejs/plugin-legacy';
 
 export default defineConfig({
-  plugins: [react(), commonjs(), legacy({
-      targets: ['defaults', 'not IE 11']
-    })],
+  plugins: [react(), commonjs()],
   optimizeDeps: {
     exclude: ['lucide-react', '@apify/log', 'ansi-colors'],
   },
