@@ -41,7 +41,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5001', // Your backend server
+        target: 'https://api.incampaigntracker.cwsdev1.com', // backend server
         changeOrigin: true,
         secure: false,
       }

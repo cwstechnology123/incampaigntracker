@@ -7,14 +7,25 @@ const router = express.Router();
 
 const ACTOR_ID = 'curious_coder/linkedin-post-search-scraper';
 
-router.get('/scrape/:userId/:hashtag', async (req, res) => {
+router.get('/scrape/:hashtag', async (req, res) => {
   try {
     const hashtag = req.params.hashtag;
     if (!hashtag) {
       return res.status(400).json({ error: 'Missing hashtag parameter' });
     }
 
-    const userId = req.params.userId;
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Missing token' });
+    }
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const userId = user.id;
+    console.log('Scraping posts for user:', userId, 'with hashtag:', hashtag);
     const settings = await fetchIntegrationSettings(userId);
     const { li_at, jsessionid, apify_api_token } = settings;
 
@@ -73,7 +84,7 @@ router.get('/scrape/:userId/:hashtag', async (req, res) => {
 
     return res.json(formatted);
   } catch (error) {
-    console.error('Scrape API error:', error);
+    console.error('Scrape API error1:', error);
     return res.status(500).json({ error: 'Failed to scrape LinkedIn posts' });
   }
 });

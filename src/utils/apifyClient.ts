@@ -1,5 +1,6 @@
 //import { ApifyClient } from 'apify-client';
-import { getCurrentUserId } from '../lib/integrationSettingsQueries';
+//import { getCurrentUserId } from '../lib/integrationSettingsQueries';
+import { supabase } from '../lib/supabase';
 
 // const ACTOR_ID = 'curious_coder/linkedin-post-search-scraper';
 // const MAX_RETRIES = 3;
@@ -46,8 +47,16 @@ import { getCurrentUserId } from '../lib/integrationSettingsQueries';
 
 export const scrapeLinkedInPosts = async (hashtag: string) => {
   try {
-    const userId = await getCurrentUserId();
-    const response = await fetch(`/api/scrape/${userId}/${encodeURIComponent(hashtag)}`);
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/scrape/${encodeURIComponent(hashtag)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+    });
 
     if (!response.ok) {
       throw new Error(`Server error: ${response.statusText}`);
