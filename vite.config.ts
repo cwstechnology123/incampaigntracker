@@ -16,23 +16,10 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('chart.js')) {
-              return 'chartjs';
-            }
-            if (id.includes('react-chartjs-2')) {
-              return 'chartjs-react';
-            }
-            if (id.includes('react')) {
-              return 'react-vendor';
-            }
-            return 'vendor';
-          }
-        }
+        manualChunks: undefined
       }
     },
-    chunkSizeWarningLimit: 1000, // Increase chunk size limit to avoid warnings
+    chunkSizeWarningLimit: 2000, // Increase chunk size limit to avoid warnings
   },
   server: {
     port: 3000,
