@@ -27,10 +27,10 @@ interface EngagementChartProps {
 
 export const EngagementChart: React.FC<EngagementChartProps> = ({ posts }) => {
   const sortedPosts = [...posts].sort((a, b) => 
-    new Date(a.postDate).getTime() - new Date(b.postDate).getTime()
+    new Date(a.post_date).getTime() - new Date(b.post_date).getTime()
   );
   
-  const labels = sortedPosts.map(post => format(parseISO(post.postDate), 'MMM d'));
+  const labels = sortedPosts.map(post => format(parseISO(post.post_date), 'MMM d'));
   
   const data = {
     labels,
@@ -73,7 +73,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({ posts }) => {
         callbacks: {
           afterTitle: (tooltipItems: any) => {
             const index = tooltipItems[0].dataIndex;
-            return sortedPosts[index].authorName;
+            return sortedPosts[index].author_name;
           },
           footer: (tooltipItems: any) => {
             const index = tooltipItems[0].dataIndex;

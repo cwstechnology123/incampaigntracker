@@ -1,22 +1,13 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Linkedin, LogOut, Menu, X, Settings } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const Header: React.FC = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  //const navigate = useNavigate();
   const isAuthenticated = !!user;
-  const [isMenuOpen, setIsMenuOpen] = React.useState(false);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white shadow-sm">
@@ -40,16 +31,11 @@ export const Header: React.FC = () => {
                 Settings
               </Link>
               <div className="flex items-center space-x-4">
-                <div className="text-sm font-medium text-neutral-600">
-                  Welcome, {user?.name}
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center space-x-1 rounded-md px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100"
-                >
+                <div className="text-sm font-medium text-neutral-600">Welcome, {user?.name}</div>
+                <Link to="/logout" className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
                   <LogOut className="h-4 w-4" />
                   <span>Logout</span>
-                </button>
+                </Link>
               </div>
             </>
           ) : (
@@ -100,26 +86,18 @@ export const Header: React.FC = () => {
                 </Link>
                 <Link
                   to="/settings"
-                  className="px-3 py-2 text-base font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="px-3 py-2 text-base font-medium text-neutral-700 hover:bg-neutral-50 flex items-center"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   <Settings className="mr-2 h-4 w-4 inline" />
                   Settings
                 </Link>
                 <div className="border-t border-neutral-200 pt-2">
-                  <div className="px-3 py-2 text-sm font-medium text-neutral-600">
-                    Welcome, {user?.name}
-                  </div>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setIsMenuOpen(false);
-                    }}
-                    className="flex w-full items-center space-x-2 px-3 py-2 text-base font-medium text-neutral-700 hover:bg-neutral-50"
-                  >
+                  <div className="px-3 py-2 text-sm font-medium text-neutral-600">Welcome, {user?.name}</div>
+                  <Link to="/logout" className="flex items-center space-x-1 px-3 py-2 text-sm font-medium text-neutral-600 hover:bg-neutral-100">
                     <LogOut className="h-4 w-4" />
                     <span>Logout</span>
-                  </button>
+                  </Link>
                 </div>
               </>
             ) : (

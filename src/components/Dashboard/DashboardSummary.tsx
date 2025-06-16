@@ -1,15 +1,11 @@
 import React, { useMemo } from 'react';
-import { Campaign } from '../../types';
-import { usePosts } from '../../contexts/PostsContext';
-import { Hash as Hashtag, Heart, MessageSquare, Share2, BarChart2 } from 'lucide-react';
+import { Hash as Hashtag, Heart, MessageSquare, BarChart2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Campaign, CampaignSummary } from '../../types';
+import { useBootstrapDataStore } from '../../states/stores/useBootstrapDataStore';
 
-interface DashboardSummaryProps {
-  campaigns: Campaign[];
-}
-
-export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ campaigns }) => {
-  const { getCampaignSummary } = usePosts();
+export const DashboardSummary: React.FC = () => {
+  const { campaigns, getCampaignSummary, isLoading } = useBootstrapDataStore() ?? {};
   
   const stats = useMemo(() => {
     if (!campaigns.length) {
@@ -24,18 +20,22 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ campaigns })
       };
     }
 
-    const summaries = campaigns.map(campaign => getCampaignSummary(campaign.id));
-    
+    const summaries = campaigns.map((campaign: Campaign) => getCampaignSummary(campaign.id));
+
     return {
       totalCampaigns: campaigns.length,
-      activeCampaigns: campaigns.filter(c => c.status === 'completed').length,
-      totalPosts: summaries.reduce((sum, s) => sum + s.postsCount, 0),
-      totalEngagement: summaries.reduce((sum, s) => sum + s.totalEngagement, 0),
-      totalLikes: summaries.reduce((sum, s) => sum + s.totalLikes, 0),
-      totalComments: summaries.reduce((sum, s) => sum + s.totalComments, 0),
-      totalShares: summaries.reduce((sum, s) => sum + s.totalShares, 0),
+      activeCampaigns: campaigns.filter((c: Campaign) => c.status === 'completed').length,
+      totalPosts: summaries.reduce((sum: number, s: CampaignSummary) => sum + s.postsCount, 0),
+      totalEngagement: summaries.reduce((sum: number, s: CampaignSummary) => sum + s.totalEngagement, 0),
+      totalLikes: summaries.reduce((sum: number, s: CampaignSummary) => sum + s.totalLikes, 0),
+      totalComments: summaries.reduce((sum: number, s: CampaignSummary) => sum + s.totalComments, 0),
+      totalShares: summaries.reduce((sum: number, s: CampaignSummary) => sum + s.totalShares, 0),
     };
   }, [campaigns, getCampaignSummary]);
+
+  if (isLoading) {
+    return <div className="card p-6 text-center">Loading dashboard...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -94,7 +94,7 @@ export const DashboardSummary: React.FC<DashboardSummaryProps> = ({ campaigns })
         <div className="card">
           <h3 className="mb-4 text-lg font-medium text-neutral-800">Recent Campaigns</h3>
           <div className="divide-y divide-neutral-200">
-            {campaigns.slice(0, 5).map(campaign => (
+            {campaigns.slice(0, 5).map((campaign: Campaign) => (
               <div key={campaign.id} className="flex items-center justify-between py-3">
                 <div>
                   <Link 

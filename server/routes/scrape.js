@@ -1,91 +1,53 @@
 // server/routes/scrape.js
 import express from 'express';
-import { ApifyClient } from 'apify-client';
-import { fetchIntegrationSettings } from '../lib/supabase-utils.js';
+import { scrapeQueue } from '../queue/scrapeQueue.js';
+import { getCurrentUserId, fetchIntegrationSettings, updateCampaignStatus, fetchCampaignById} from '../lib/supabase-utils.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const router = express.Router();
 
-const ACTOR_ID = 'curious_coder/linkedin-post-search-scraper';
-
-router.get('/scrape/:hashtag', async (req, res) => {
+router.post('/scrape', async (req, res) => {
   try {
-    const hashtag = req.params.hashtag;
-    if (!hashtag) {
-      return res.status(400).json({ error: 'Missing hashtag parameter' });
-    }
+    const { campaign_id } = req.body;
+    if (!campaign_id) return res.status(400).json({ message: 'Campaign ID is required' });
+    
+    const userId =  req.user.id;
 
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ error: 'Missing token' });
+    // Step 1: Fetch campaign
+    const campaign = await fetchCampaignById(campaign_id);
+    if (!campaign?.hashtag || !campaign?.hashtag.trim()) {
+      return res.status(400).json({ error: 'Campaign not found or missing hashtag' });
     }
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-
-    if (error || !user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    const userId = user.id;
+    const hashtag = campaign.hashtag.trim().replace(/^#/, '');
     console.log('Scraping posts for user:', userId, 'with hashtag:', hashtag);
-    const settings = await fetchIntegrationSettings(userId);
-    const { li_at, jsessionid, apify_api_token } = settings;
 
-    if (!li_at || !jsessionid || !apify_api_token) {
-      return res.status(400).json({ error: 'Missing one or more required settings' });
+    // Step 2: Fetch integration settings
+    const settings = await fetchIntegrationSettings(userId);
+    if (!settings) {
+      return res.status(400).json({ error: 'Integration settings not found' });
     }
 
-    const cookies = [
-      { name: 'li_at', value: li_at },
-      { name: 'JSESSIONID', value: jsessionid.replace(/^"(.*)"$/, '$1') },
-    ];
+    // Ensure required settings are present
+    const { li_at, jsessionid, apify_api_token } = settings;
+    if (!li_at || !jsessionid || !apify_api_token) {
+      return res.status(400).json({ error: 'Missing required integration settings' });
+    }
 
-    const client = new ApifyClient({ token: apify_api_token });
-
-    const run = await client.actor(ACTOR_ID).call({
-      urls: [`https://www.linkedin.com/search/results/content/?keywords=%23${hashtag}`],
-      searchTerms: [`#${hashtag}`],
-      maxPostCount: 50,
-      maxConcurrency: 10,
-      maxRequestRetries: 3,
-      timeoutSecs: 300,
-      cookie: cookies,
-      useApifyProxy: true,
-      proxy: { useApifyProxy: true }
+    // Step 3: Scrape Queue
+    const job = await scrapeQueue.add('scrape-job', {
+      hashtag,
+      campaign_id,
+      settings,
     });
 
-    const { items } = await client.dataset(run.defaultDatasetId).listItems();
+    // Step 4: Save job ID to campaign
+    await updateCampaignStatus(campaign_id, 'running', job.id);
 
-    const formatted = items.map((item) => {
-      const likes = parseInt(item.numLikes || '0', 10);
-      const comments = parseInt(item.numComments || '0', 10);
-      const shares = parseInt(item.numShares || '0', 10);
-
-      let authorName = 'Unknown Author';
-      if (typeof item.author === 'object' && item.author !== null) {
-        const { firstName, lastName } = item.author;
-        authorName = `${firstName || ''} ${lastName || ''}`.trim();
-      } else if (typeof item.author === 'string') {
-        authorName = item.author;
-      } else if (typeof item.authorInfo === 'object' && item.authorInfo !== null) {
-        const { firstName, lastName } = item.authorInfo;
-        authorName = `${firstName || ''} ${lastName || ''}`.trim();
-      }
-
-      return {
-        postDate: new Date(item.timestamp || Date.now()).toISOString(),
-        authorName,
-        postLink: item.postUrl || '',
-        content: item.text || '',
-        likes,
-        comments,
-        shares,
-        hashtags: Array.isArray(item.hashtags) ? item.hashtags : [hashtag],
-      };
-    });
-
-    return res.json(formatted);
-  } catch (error) {
-    console.error('Scrape API error1:', error);
-    return res.status(500).json({ error: 'Failed to scrape LinkedIn posts' });
+    return res.status(202).json({ jobId: job.id, status: 'running' });
+  } catch (err) {
+    console.error('Scrape trigger error:', err);
+    res.status(500).json({ error: 'Scraping job submission failed' });
   }
 });
 

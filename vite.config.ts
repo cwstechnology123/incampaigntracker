@@ -4,11 +4,19 @@ import commonjs from '@rollup/plugin-commonjs';
 
 export default defineConfig({
   plugins: [react(), commonjs()],
+  resolve: {
+    alias: {
+      'use-sync-external-store/shim/index.js': 'react',
+    },
+  },
   optimizeDeps: {
+    include: ['use-sync-external-store'],
     exclude: ['lucide-react', '@apify/log', 'ansi-colors'],
   },
   build: {
     outDir: 'dist',
+    sourcemap: true, 
+    minify: false,
     commonjsOptions: {
       transformMixedEsModules: true,
     },

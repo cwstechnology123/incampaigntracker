@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCampaigns } from '../../contexts/CampaignsContext';
-import { usePosts } from '../../contexts/PostsContext';
 import { exportToCSV } from '../../utils/mockApi';
 import { format, parseISO } from 'date-fns';
 import { 
@@ -20,13 +19,15 @@ import {
 } from 'lucide-react';
 import { PostList } from '../Post/PostList';
 import { EngagementChart } from '../Post/EngagementChart';
+import { useBootstrapDataStore } from '../../states/stores/useBootstrapDataStore';
+import { pollJobStatus } from '../../lib/pollJobStatus';
 
 export const CampaignDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCampaign, runCampaign, deleteCampaign, isLoading } = useCampaigns();
-  const { getCampaignPosts, getCampaignSummary } = usePosts();
-  
+  const { getCampaign, runCampaign, deleteCampaign, isLoading, updateCampaignError } = useCampaigns();
+  const { getCampaignPosts, getCampaignSummary, updateCampaigns, refresh } = useBootstrapDataStore() ?? {};
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,16 +48,31 @@ export const CampaignDetail: React.FC = () => {
     if (!campaign && !isLoading) {
       navigate('/campaigns');
     }
+    else if (campaign && campaign.status === 'running' && !isLoading) {
+      // If campaign is running, we might want to poll for updates or show a loading state
+      pollJobStatus(
+        campaign.id,
+        updateCampaigns,
+        updateCampaignError ?? (() => {}),
+        refresh
+      );
+    }
   }, [campaign, isLoading, navigate]);
   
   const handleRunCampaign = async () => {
+    console.log('Running campaign with ID:', id);
     if (!id) return;
-    
+    console.log('Running campaign:', id);
     try {
       setError(null);
       await runCampaign(id);
-    } catch (err) {
-      if (err instanceof Error) {
+      refresh();
+      console.log('Campaign started successfully');
+    } catch (err: any) {
+      console.error('Error running campaign:', err);
+      if (err.message === 'Integration settings not found') {
+        setError('Please configure your integration settings before running a campaign.');
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError('An unexpected error occurred');
@@ -155,14 +171,26 @@ export const CampaignDetail: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {campaign.error && (
+          <div className="flex items-start rounded-md bg-error-50 p-3 text-error-700">
+            <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
+            <span className="font-medium">{campaign.error}</span>
+          </div>
+        )}
         
-        {error && (
+        {error === 'Please configure your integration settings before running a campaign.' ? (
+          <div className="flex items-start rounded-md bg-error-50 p-3 text-error-700">
+            <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
+            <span>{error} <Link to="/settings" className="underline text-blue-600">Go to Settings</Link></span>
+          </div>
+        ) : error && (
           <div className="flex items-start rounded-md bg-error-50 p-3 text-error-700">
             <AlertCircle className="mr-2 h-5 w-5 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
-        
+
         {campaign.description && (
           <p className="text-neutral-600">{campaign.description}</p>
         )}
@@ -170,7 +198,7 @@ export const CampaignDetail: React.FC = () => {
         <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-500">
           <div className="flex items-center">
             <Calendar className="mr-1 h-4 w-4" />
-            <span>Created on {format(parseISO(campaign.createdAt), 'MMM d, yyyy')}</span>
+            <span>Created on {campaign?.created_at ? format(parseISO(campaign.created_at), 'MMM d, yyyy') : 'N/A'}</span>
           </div>
           
           {campaign.lastRun && (
@@ -267,7 +295,7 @@ export const CampaignDetail: React.FC = () => {
       <div className="card">
         <h2 className="mb-4 text-xl font-semibold">LinkedIn Posts</h2>
         {posts.length > 0 ? (
-          <PostList posts={posts} />
+          <PostList />
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Linkedin className="mb-3 h-12 w-12 text-neutral-300" />

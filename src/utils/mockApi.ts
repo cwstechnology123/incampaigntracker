@@ -2,7 +2,7 @@ import { Post } from '../types';
 import { format, subDays } from 'date-fns';
 
 interface MockPost {
-  postDate: string;
+  post_date: string;
   authorName: string;
   postLink: string;
   likes: number;
@@ -52,7 +52,7 @@ export const scrapeLinkedInPosts = async (hashtag: string): Promise<MockPost[]> 
   
   for (let i = 0; i < postCount; i++) {
     const daysAgo = Math.floor(Math.random() * 30); // Random post date within last 30 days
-    const postDate = format(subDays(new Date(), daysAgo), "yyyy-MM-dd'T'HH:mm:ss");
+    const post_date = format(subDays(new Date(), daysAgo), "yyyy-MM-dd'T'HH:mm:ss");
     
     const authorIndex = Math.floor(Math.random() * authors.length);
     const contentIndex = Math.floor(Math.random() * contents.length);
@@ -90,7 +90,7 @@ export const scrapeLinkedInPosts = async (hashtag: string): Promise<MockPost[]> 
     const content = `${contents[contentIndex]} ${hashtagsArray.map(h => `#${h}`).join(' ')}`;
     
     posts.push({
-      postDate,
+      post_date,
       authorName: authors[authorIndex],
       postLink: `https://linkedin.com/post/${crypto.randomUUID().substring(0, 8)}`,
       likes,
@@ -102,7 +102,7 @@ export const scrapeLinkedInPosts = async (hashtag: string): Promise<MockPost[]> 
   }
   
   // Sort by date (newest first)
-  return posts.sort((a, b) => new Date(b.postDate).getTime() - new Date(a.postDate).getTime());
+  return posts.sort((a, b) => new Date(b.post_date).getTime() - new Date(a.post_date).getTime());
 };
 
 // Helper function to export posts as CSV
@@ -123,15 +123,15 @@ export const exportToCSV = (posts: Post[], campaignTitle: string) => {
   // Format each post as a CSV row
   const rows = posts.map(post => {
     const totalEngagement = post.likes + post.comments + post.shares;
-    const formattedDate = new Date(post.postDate).toLocaleDateString();
+    const formattedDate = new Date(post.post_date).toLocaleDateString();
     
     // Escape content to prevent CSV issues with commas and quotes
     const escapedContent = post.content.replace(/"/g, '""');
     
     return [
       formattedDate,
-      post.authorName,
-      post.postLink,
+      post.author_name,
+      post.post_link,
       post.likes,
       post.comments,
       post.shares,

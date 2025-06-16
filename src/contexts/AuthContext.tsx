@@ -1,160 +1,142 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, AuthContextType } from '../types';
+// contexts/AuthContext.tsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-
+import { User } from '@supabase/supabase-js';
+import { AuthContextType } from '../types';
+import { useSessionStore } from '../states/stores/useSessionStore';
+ 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const { session, setSession } = useSessionStore();
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await fetchProfile(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setIsLoading(false);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
+  const mapUser = (supabaseUser: User | null): import('../types').User | null => {
+    if (!supabaseUser) return null;
+    return {
+      id: supabaseUser.id,
+      email: supabaseUser.email ?? '',
+      name: (supabaseUser.user_metadata?.name as string) ?? '',
+      created_at: supabaseUser.created_at ?? '',
     };
-  }, []);
+  };
 
-  const fetchProfile = async (userId: string) => {
+  const user = useMemo(() => mapUser(session?.user ?? null), [session]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession); // Sync session to global store
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [setSession]);
+
+  const fetchProfile = async (userId: string): Promise<void> => {
     try {
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
-       console.log(profile,'profile');
+      console.log('fetchProfile profile:', profile);
       if (error) {
-        if (error.code === 'PGRST116') {
-          
-          // Profile doesn't exist, get user data and create profile
-          const { data: authData } = await supabase.auth.getUser();
-          if (!authData.user) throw new Error('No authenticated user found');
-          console.log(userId, 'userId');
-          const { data: newProfile, error: createError } = await supabase
+        if ((error as any).code === 'PGRST116') {
+          const { data: authData, error: authError } = await supabase.auth.getUser();
+          if (authError || !authData.user) throw authError ?? new Error('No authenticated user found');
+
+          const { email, user_metadata } = authData.user;
+          const name = user_metadata?.name || email?.split('@')[0] || 'User';
+
+          const { error: createError } = await supabase
             .from('profiles')
-            .insert([{
-              id: userId,
-              email: authData.user.email || '',
-              name: authData.user.user_metadata.name || authData.user.email?.split('@')[0] || 'User',
-            }])
-            .select()
-            .single();
+            .insert([{ id: userId, email, name }]);
 
           if (createError) throw createError;
-          if (!newProfile) throw new Error('Failed to create profile');
-
-          setUser({
-            id: userId,
-            email: newProfile.email,
-            name: newProfile.name,
-            createdAt: newProfile.created_at,
-          });
         } else {
           throw error;
         }
-      } else if (profile) {
-        setUser({
-          id: userId,
-          email: profile.email,
-          name: profile.name,
-          createdAt: profile.created_at,
-        });
       }
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
-      setUser(null);
+    } catch (err) {
+      console.error('fetchProfile error:', err);
+      throw err;
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      setSession(data.session ?? null);
+      if (data.user) await fetchProfile(data.user.id);
+    } catch (err) {
+      console.error("Login error:", err);
+      throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const register = async (name: string, email: string, password: string): Promise<void> => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      if (!data.user) throw new Error('No user data returned');
-
-      await fetchProfile(data.user.id);
-    } catch (error) {
-      setIsLoading(false);
-      console.error('Login error:', error);
-      throw error;
-    }
-  };
-
-  const register = async (name: string, email: string, password: string) => {
-    try {
-      setIsLoading(true);
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            name: name, // passed to raw_user_meta_data
-          },
-        },
+        options: { data: { name } },
       });
-    // console.log(data, error);
       if (error) throw error;
-      if (!data.user) throw new Error('No user data returned');
-      await fetchProfile(data.user.id);
-    } catch (error) {
+      setSession(data.session ?? null);
+      if (data.user) await fetchProfile(data.user.id);
+    } catch (err) {
+      console.error("Register error:", err);
+      throw err;
+    } finally {
       setIsLoading(false);
-      console.error('Registration error:', error);
-      throw error;
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null); // triggers re-render in components using user/isAuthenticated
-    } catch (error) {
-      console.error('Logout error:', error);
-      throw error;
+      const logoutPromise = supabase.auth.signOut();
+      // Wrap signOut in a timeout of 5 seconds
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Logout timed out')), 5000)
+      );
+      await Promise.race([logoutPromise, timeout]);
+      console.log('User logged out successfully');
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      setSession(null);
+      localStorage.clear();
+      sessionStorage.clear();
+      setIsLoading(false);
     }
   };
 
-  const value = {
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        login,
+        register,
+        logout,
+        isLoading,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 };

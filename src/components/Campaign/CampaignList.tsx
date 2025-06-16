@@ -2,12 +2,12 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search, Calendar, ArrowUpDown, Loader } from 'lucide-react';
 import { useCampaigns } from '../../contexts/CampaignsContext';
-import { usePosts } from '../../contexts/PostsContext';
+import { useBootstrapDataStore } from '../../states/stores/useBootstrapDataStore';
 import { format, parseISO } from 'date-fns';
 
 export const CampaignList: React.FC = () => {
   const { campaigns, isLoading } = useCampaigns();
-  const { getCampaignSummary } = usePosts();
+  const { getCampaignSummary } = useBootstrapDataStore() ?? {};
   const [searchTerm, setSearchTerm] = React.useState('');
   const [sortBy, setSortBy] = React.useState<'date' | 'title' | 'engagement'>('date');
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
@@ -30,7 +30,7 @@ export const CampaignList: React.FC = () => {
       let comparison = 0;
       
       if (sortBy === 'date') {
-        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       } else if (sortBy === 'title') {
         comparison = a.title.localeCompare(b.title);
       } else if (sortBy === 'engagement') {
@@ -149,7 +149,7 @@ export const CampaignList: React.FC = () => {
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-neutral-600">
                         <div className="flex items-center">
                           <Calendar className="mr-2 h-4 w-4 text-neutral-400" />
-                          {format(parseISO(campaign.createdAt), 'MMM d, yyyy')}
+                          {campaign?.created_at ? format(parseISO(campaign.created_at), 'MMM d, yyyy') : 'N/A'}
                         </div>
                       </td>
                       <td className="whitespace-nowrap px-6 py-4">
